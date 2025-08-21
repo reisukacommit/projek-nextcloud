@@ -1,0 +1,29 @@
+---
+- name: Install Bind9
+  apt:
+    name: bind9
+    state: present
+
+- name: Copy named.conf.options
+  template:
+    src: named.conf.options.j2
+    dest: /etc/bind/named.conf.options
+  notify: restart bind
+
+- name: Configure named.conf.local
+  template:
+    src: named.conf.local.j2
+    dest: /etc/bind/named.conf.local
+  notify: restart bind
+
+- name: Configure forward zone
+  template:
+    src: db.cloud.reihan.lan.local.j2
+    dest: /etc/bind/db.cloud.reihan.lan.local
+  notify: restart bind
+
+- name: Start and enable Bind9
+  service:
+    name: bind9
+    state: started
+    enabled: yes

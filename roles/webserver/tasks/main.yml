@@ -1,0 +1,103 @@
+---
+- name: Install required packages
+  apt:
+    name:
+      - nginx
+      - php8.2-fpm
+      - php8.2-common
+      - php8.2-mysql
+      - php8.2-gd
+      - php8.2-curl
+      - php8.2-zip
+      - php8.2-xml
+      - php8.2-mbstring
+      - php8.2-bz2
+      - php8.2-intl
+      - php8.2-bcmath
+      - php8.2-gmp
+    state: present
+
+- name: Download Nextcloud
+  get_url:
+    url: "https://download.nextcloud.com/server/releases/latest.zip"
+    dest: /tmp/nextcloud.zip
+    mode: '0644'
+
+- name: Create Nextcloud directory
+  file:
+    path: /var/www/nextcloud
+    state: directory
+    owner: www-data
+    group: www-data
+
+- name: Extract Nextcloud (Perbaikan di sini)
+  shell: |
+    unzip -q /tmp/nextcloud.zip -d /var/www/tmp-nextcloud
+    mv /var/www/tmp-nextcloud/nextcloud/* /var/www/nextcloud/
+    rm -rf /var/www/tmp-nextcloud
+  args:
+    creates: /var/www/nextcloud/index.php
+
+- name: Configure PHP settings
+  lineinfile:
+    path: /etc/php/8.2/fpm/php.ini
+    regexp: "^{{ item.regex }}"
+    line: "{{ item.line }}"
+    state: present
+  loop:
+    - { regex: '^memory_limit', line: 'memory_limit = 512M' }
+    - { regex: '^upload_max_filesize', line: 'upload_max_filesize = 2G' }
+    - { regex: '^post_max_size', line: 'post_max_size = 2G' }
+  notify: restart php-fpm
+
+- name: Configure PHP-FPM pool
+  template:
+    src: www.conf.j2
+    dest: /etc/php/8.2/fpm/pool.d/www.conf
+  notify: restart php-fpm
+
+- name: Configure Nginx for Nextcloud
+  template:
+    src: nextcloud.conf.j2
+    dest: /etc/nginx/sites-available/nextcloud
+  notify: restart nginx
+
+- name: Enable Nextcloud site
+  file:
+    src: /etc/nginx/sites-available/nextcloud
+    dest: /etc/nginx/sites-enabled/nextcloud
+    state: link
+  notify: restart nginx
+
+- name: Disable default site
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: restart nginx
+
+- name: Create data directory
+  file:
+    path: /var/www/nextcloud/data
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0750'
+
+- name: Set permissions
+  command: chown -R www-data:www-data /var/www/nextcloud
+
+- name: Ensure PHP sessions directory exists
+  file:
+    path: /var/lib/php/sessions
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0700'
+
+- name: Ensure PHP upload temp directory exists
+  file:
+    path: /var/tmp/php
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0700'

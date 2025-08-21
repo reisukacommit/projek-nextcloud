@@ -1,0 +1,88 @@
+---
+- name: Setup control node dependencies
+  hosts: control
+  become: yes
+  tasks:
+    - name: Install Python3 and required libraries
+      apt:
+        name:
+          - python3
+          - python3-cryptography
+          - python3-openssl
+        state: present
+
+- name: Setup common packages
+  hosts: all
+  become: yes  # Tambahkan ini
+  roles:
+    - commmon
+
+- name: Configure DNS server
+  hosts: dns
+  become: yes  # Tambahkan ini
+  roles:
+    - dns
+
+- name: Configure Reverse Proxy with SSL
+  hosts: dns
+  become: yes  # Tambahkan ini
+  roles:
+    - reverse_proxy
+
+- name: Configure Web Server
+  hosts: web
+  become: yes  # Tambahkan ini
+  roles:
+    - webserver
+
+- name: Configure Database
+  hosts: db
+  become: yes  # Tambahkan ini
+  roles:
+    - db
+
+- name: Final Nextcloud setup
+  hosts: web
+  become: yes
+  tasks:
+    - name: Wait for database to be ready
+      wait_for:
+        host: 192.168.1.13
+        port: 3306
+        timeout: 30
+        delay: 5
+        state: started
+
+    - name: Check if Nextcloud is already installed
+      stat:
+        path: /var/www/nextcloud/config/config.php
+      register: nextcloud_installed
+
+    - name: Run Nextcloud installation
+      command: >
+        sudo -u www-data php /var/www/nextcloud/occ maintenance:install
+        --database="mysql"
+        --database-name="nextcloud"
+        --database-user="admin"
+        --database-pass="admin123"
+        --database-host="192.168.1.13"
+        --admin-user="admin"
+        --admin-pass="admin123"
+        --data-dir="/var/www/nextcloud/data"
+      when: not nextcloud_installed.stat.exists
+      changed_when: false
+
+    - name: Set trusted domains
+      command: >
+        sudo -u www-data php /var/www/nextcloud/occ config:system:set trusted_domains 1 --value="cloud.reihan.lan.local"
+      when: not nextcloud_installed.stat.exists
+
+    - name: Set overwrite protocol
+      command: >
+        sudo -u www-data php /var/www/nextcloud/occ config:system:set overwriteprotocol --value="https"
+      when: not nextcloud_installed.stat.exists
+
+    - name: Set trusted proxies
+      command: >
+        sudo -u www-data php /var/www/nextcloud/occ config:system:set trusted_proxies 0 --value="192.168.1.11"
+      when: not nextcloud_installed.stat.exists

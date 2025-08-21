@@ -1,0 +1,72 @@
+---
+- name: Install Nginx and OpenSSL
+  apt:
+    name:
+      - nginx
+      - openssl
+    state: present
+
+- name: Create SSL directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /etc/ssl/private
+    - /etc/ssl/certs
+
+- name: Generate private key
+  command: >
+    openssl genrsa -out /etc/ssl/private/nextcloud.key 2048
+    creates=/etc/ssl/private/nextcloud.key
+
+- name: Generate CSR
+  command: >
+    openssl req -new -key /etc/ssl/private/nextcloud.key
+    -out /etc/ssl/certs/nextcloud.csr
+    -subj "/C=ID/ST=Java/L=Jakarta/O=Reihan/CN=cloud.reihan.lan.local"
+    creates=/etc/ssl/certs/nextcloud.csr
+
+- name: Generate self-signed certificate
+  command: >
+    openssl x509 -req -days 365
+    -in /etc/ssl/certs/nextcloud.csr
+    -signkey /etc/ssl/private/nextcloud.key
+    -out /etc/ssl/certs/nextcloud.pem
+    creates=/etc/ssl/certs/nextcloud.pem
+
+- name: Set proper permissions for SSL key
+  file:
+    path: /etc/ssl/private/nextcloud.key
+    mode: '0600'
+    owner: root
+    group: root
+
+- name: Configure reverse proxy
+  template:
+    src: nginx-reverse-proxy.conf.j2
+    dest: /etc/nginx/sites-available/cloud.reihan.lan.local
+  notify: restart nginx
+
+- name: Enable site (Perbaikan di sini)
+  file:
+    src: /etc/nginx/sites-available/cloud.reihan.lan.local
+    dest: /etc/nginx/sites-enabled/cloud.reihan.lan.local
+    state: link
+  notify: restart nginx
+
+- name: Disable default site
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: restart nginx
+
+- name: Verify Nginx configuration
+  command: nginx -t
+  register: nginx_test
+  changed_when: false
+  notify: restart nginx
+
+- name: Show Nginx test result
+  debug:
+    msg: "{{ nginx_test.stdout }}"

@@ -1,0 +1,30 @@
+server {
+    listen 80;
+    server_name cloud.reihan.lan.local;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name cloud.reihan.lan.local;
+
+    ssl_certificate /etc/ssl/certs/nextcloud.pem;
+    ssl_certificate_key /etc/ssl/private/nextcloud.key;
+
+    # SSL settings
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+
+    location / {
+        proxy_pass http://192.168.1.12;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Important for Nextcloud
+        proxy_max_temp_file_size 0;
+        client_max_body_size 2G;
+    }
+}
