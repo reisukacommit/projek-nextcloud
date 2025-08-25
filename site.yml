@@ -13,31 +13,31 @@
 
 - name: Setup common packages
   hosts: all
-  become: yes  # Tambahkan ini
+  become: yes
   roles:
     - commmon
 
 - name: Configure DNS server
   hosts: dns
-  become: yes  # Tambahkan ini
+  become: yes
   roles:
     - dns
 
 - name: Configure Reverse Proxy with SSL
   hosts: dns
-  become: yes  # Tambahkan ini
+  become: yes
   roles:
     - reverse_proxy
 
 - name: Configure Web Server
   hosts: web
-  become: yes  # Tambahkan ini
+  become: yes
   roles:
     - webserver
 
 - name: Configure Database
   hosts: db
-  become: yes  # Tambahkan ini
+  become: yes
   roles:
     - db
 
@@ -71,18 +71,44 @@
         --data-dir="/var/www/nextcloud/data"
       when: not nextcloud_installed.stat.exists
       changed_when: false
+      register: install_result
 
     - name: Set trusted domains
       command: >
         sudo -u www-data php /var/www/nextcloud/occ config:system:set trusted_domains 1 --value="cloud.reihan.lan.local"
-      when: not nextcloud_installed.stat.exists
+      when: install_result is succeeded or nextcloud_installed.stat.exists
 
     - name: Set overwrite protocol
       command: >
         sudo -u www-data php /var/www/nextcloud/occ config:system:set overwriteprotocol --value="https"
-      when: not nextcloud_installed.stat.exists
+      when: install_result is succeeded or nextcloud_installed.stat.exists
 
     - name: Set trusted proxies
       command: >
         sudo -u www-data php /var/www/nextcloud/occ config:system:set trusted_proxies 0 --value="192.168.1.11"
-      when: not nextcloud_installed.stat.exists
+      when: install_result is succeeded or nextcloud_installed.stat.exists
+
+- name: Configure user management and permissions
+  hosts: web
+  become: yes
+  roles:
+    - role: user_management
+      vars:
+        member_users:
+          - { username: "user1", password: "password123" }
+          - { username: "user2", password: "password123" }
+          - { username: "user3", password: "password123" }
+
+- name: Verify Nextcloud installation
+  hosts: web
+  become: yes
+  tasks:
+    - name: Check Nextcloud status
+      command: >
+        sudo -u www-data php /var/www/nextcloud/occ status
+      register: nextcloud_status
+      changed_when: false
+
+    - name: Display Nextcloud status
+      debug:
+        msg: "{{ nextcloud_status.stdout }}"
