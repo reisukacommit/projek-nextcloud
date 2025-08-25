@@ -1,0 +1,9 @@
+---
+- name: Install basic utilities
+  apt:
+    name:
+      - curl
+      - wget
+      - unzip
+      - gnupg
+    state: present
