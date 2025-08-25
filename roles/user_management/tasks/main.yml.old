@@ -1,0 +1,110 @@
+---
+- name: Check if Nextcloud config exists
+  stat:
+    path: /var/www/nextcloud/config/config.php
+  register: nextcloud_config
+
+- name: Get list of existing groups
+  command: >
+    sudo -u www-data php /var/www/nextcloud/occ group:list
+  register: group_list
+  changed_when: false
+  when: nextcloud_config.stat.exists
+
+- name: Create admin group if not exists
+  command: >
+    sudo -u www-data php /var/www/nextcloud/occ group:add admin
+  when: 
+    - nextcloud_config.stat.exists
+    - "'admin' not in group_list.stdout"
+  register: create_admin_group
+  changed_when: create_admin_group.rc == 0
+
+- name: Create member group if not exists
+  command: >
+    sudo -u www-data php /var/www/nextcloud/occ group:add member
+  when: 
+    - nextcloud_config.stat.exists
+    - "'member' not in group_list.stdout"
+  register: create_member_group
+  changed_when: create_member_group.rc == 0
+
+- name: Add admin user to admin group
+  command: >
+    sudo -u www-data php /var/www/nextcloud/occ group:adduser admin admin
+  when: nextcloud_config.stat.exists
+  register: add_admin_to_group
+  changed_when: add_admin_to_group.rc == 0
+
+- name: Get list of existing users
+  command: >
+    sudo -u www-data php /var/www/nextcloud/occ user:list
+  register: existing_users
+  changed_when: false
+  when: nextcloud_config.stat.exists
+
+- name: Create member users without password first
+  command: >
+    sudo -u www-data php /var/www/nextcloud/occ user:add {{ item.username }} --group=member
+  with_items: "{{ member_users }}"
+  when: 
+    - nextcloud_config.stat.exists
+    - item.username not in existing_users.stdout
+  register: create_users
+  changed_when: create_users.rc == 0
+  ignore_errors: yes
+
+- name: Set passwords for member users
+  command: >
+    sudo -u www-data php /var/www/nextcloud/occ user:resetpassword {{ item.username }} --password-from-env
+  environment:
+    OC_PASS: "{{ item.password }}"
+  with_items: "{{ member_users }}"
+  when: 
+    - nextcloud_config.stat.exists
+    - item.username in existing_users.stdout
+  register: set_passwords
+  changed_when: set_passwords.rc == 0
+  ignore_errors: yes
+
+- name: Set admin permissions (read, update, create, delete, share)
+  command: >
+    sudo -u www-data php /var/www/nextcloud/occ config:app:set core share_default_permissions_admin --value="31"
+  when: nextcloud_config.stat.exists
+
+- name: Set member permissions (read, update, create)
+  command: >
+    sudo -u www-data php /var/www/nextcloud/occ config:app:set core share_default_permissions --value="19"
+  when: nextcloud_config.stat.exists
+
+- name: Allow external sharing for admin only
+  command: >
+    sudo -u www-data php /var/www/nextcloud/occ config:app:set core shareapi_allow_links --value="yes"
+  when: nextcloud_config.stat.exists
+
+- name: Configure additional permission settings
+  command: >
+    sudo -u www-data php /var/www/nextcloud/occ config:app:set {{ item.app }} {{ item.key }} --value="{{ item.value }}"
+  with_items:
+    - { app: 'core', key: 'shareapi_allow_group_sharing', value: 'yes' }
+    - { app: 'core', key: 'shareapi_allow_links', value: 'yes' }
+    - { app: 'core', key: 'shareapi_allow_public_upload', value: 'no' }
+    - { app: 'core', key: 'shareapi_enabled', value: 'yes' }
+  when: nextcloud_config.stat.exists
+  register: config_settings
+  changed_when: config_settings.rc == 0
+
+#- name: Enable access control app for advanced permissions
+#  command: >
+#    sudo -u www-data php /var/www/nextcloud/occ app:enable accesscontrol
+#  when: nextcloud_config.stat.exists
+
+#- name: Create access control configuration
+#  template:
+#    src: accesscontrol.json.j2
+#    dest: /var/www/nextcloud/data/accesscontrol.json
+#    owner: www-data
+#    group: www-data
+#    mode: '0644'
+#  when: nextcloud_config.stat.exists
+#  notify: restart php-fpm
