@@ -15,20 +15,20 @@
     state: started
     enabled: yes
 
-- name: Wait for MariaDB to be ready
+- name: Menunggu MariaDB Untuk Siap
   wait_for:
     port: 3306
     delay: 5
     timeout: 30
 
-- name: Check if root password is already set
+- name: Check Jika Root Password Sudah Di Set
   shell: |
     sudo mysql -u root -e "SELECT 1;" >/dev/null 2>&1
     echo $?
   register: root_access_check
   changed_when: false
 
-- name: Set root password if not set (using mysqladmin)
+- name: Set Root Password Jika Belum Di Set (Menggunakan mysqladmin)
   command: >
     mysqladmin -u root password "admin123"
   when: root_access_check.stdout == "0"
@@ -42,7 +42,7 @@
     dest: /root/.my.cnf
     mode: 0600
 
-- name: Set root password for all hosts
+- name: Set root password untuk all hosts
   mysql_user:
     name: root
     password: "admin123"

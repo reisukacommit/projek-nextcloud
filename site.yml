@@ -17,25 +17,25 @@
   roles:
     - commmon
 
-- name: Configure DNS server
+- name: Konfigurasi DNS server
   hosts: dns
   become: yes
   roles:
     - dns
 
-- name: Configure Reverse Proxy with SSL
+- name: Konfigurasi Reverse Proxy with SSL
   hosts: dns
   become: yes
   roles:
     - reverse_proxy
 
-- name: Configure Web Server
+- name: Konfigurasi Web Server
   hosts: web
   become: yes
   roles:
     - webserver
 
-- name: Configure Database
+- name: Konfigurasi Database
   hosts: db
   become: yes
   roles:
@@ -45,7 +45,7 @@
   hosts: web
   become: yes
   tasks:
-    - name: Wait for database to be ready
+    - name: Menunggu Database Untuk Siap
       wait_for:
         host: 192.168.1.13
         port: 3306
@@ -53,7 +53,7 @@
         delay: 5
         state: started
 
-    - name: Check if Nextcloud is already installed
+    - name: Check Jika Nextcloud Sudah Terinstall
       stat:
         path: /var/www/nextcloud/config/config.php
       register: nextcloud_installed
@@ -88,7 +88,7 @@
         sudo -u www-data php /var/www/nextcloud/occ config:system:set trusted_proxies 0 --value="192.168.1.11"
       when: install_result is succeeded or nextcloud_installed.stat.exists
 
-- name: Configure user management and permissions
+- name: Konfigurasi User Management dan Permissions
   hosts: web
   become: yes
   roles:
@@ -99,7 +99,7 @@
           - { username: "user2", password: "password123" }
           - { username: "user3", password: "password123" }
 
-- name: Verify Nextcloud installation
+- name: Verifikasi Nextcloud installation
   hosts: web
   become: yes
   tasks:

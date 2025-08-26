@@ -48,7 +48,7 @@
     dest: /etc/nginx/sites-available/cloud.reihan.lan.local
   notify: restart nginx
 
-- name: Enable site (Perbaikan di sini)
+- name: Enable site
   file:
     src: /etc/nginx/sites-available/cloud.reihan.lan.local
     dest: /etc/nginx/sites-enabled/cloud.reihan.lan.local

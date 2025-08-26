@@ -1,5 +1,5 @@
 ---
-- name: Check if Nextcloud config exists
+- name: Check Jika Nextcloud Config Ada
   stat:
     path: /var/www/nextcloud/config/config.php
   register: nextcloud_config
